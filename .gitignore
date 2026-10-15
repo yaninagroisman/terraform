@@ -1,0 +1,96 @@
+
+# =========================
+# Terraform
+# =========================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+crash.log
+crash.*.log
+
+# Keep Terraform dependency lock files!
+!**/.terraform.lock.hcl
+
+# =========================
+# Secrets & Environment
+# =========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.secret
+secrets.yaml
+secrets.yml
+*credentials*.json
+*credentials*.yaml
+
+# =========================
+# AWS / Kubernetes
+# =========================
+.aws/
+.kube/
+kubeconfig
+kubeconfig.*
+!kubeconfig.example
+
+# =========================
+# Python / Flask
+# =========================
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# =========================
+# Ansible
+# =========================
+*.retry
+vault-password*
+ansible-vault-password*
+
+# =========================
+# IDE / OS
+# =========================
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.log
+
+# =========================
+# Local databases
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+.cache/
+*.bak
+*.tmp
