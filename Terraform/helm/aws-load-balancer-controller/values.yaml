@@ -1,0 +1,10 @@
+clusterName: infinity-weather-eks
+region: eu-north-1
+
+enableBackendSecurityGroup: true
+
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::060941289583:role/infinity-weather-alb-controller

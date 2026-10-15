@@ -1,0 +1,95 @@
+#!/bin/bash
+set -euo pipefail
+
+# Create Jenkins bootstrap configuration
+install -d -m 755 /etc/jenkins
+
+cat > /etc/jenkins/bootstrap.env <<'EOF'
+JENKINS_ADMIN_USER=admin
+JENKINS_ADMIN_SECRET_ID=infinity-weather/jenkins-admin-password
+EOF
+
+chown root:root /etc/jenkins/bootstrap.env
+chmod 600 /etc/jenkins/bootstrap.env
+
+
+# Wait for the persistent Jenkins EBS volume
+# Wait for the persistent Jenkins EBS volume
+VOLUME_ID="${jenkins_volume_id}"
+VOLUME_ID_NODASH="${jenkins_volume_id_nodash}"
+
+DEVICE=""
+
+for i in $(seq 1 60); do
+  for candidate in \
+    "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$VOLUME_ID" \
+    "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$VOLUME_ID_NODASH"; do
+
+    if [ -b "$candidate" ]; then
+      DEVICE="$candidate"
+      break 2
+    fi
+  done
+
+  sleep 10
+done
+
+if [ -z "$DEVICE" ]; then
+  echo "ERROR: Jenkins EBS volume $VOLUME_ID was not attached"
+  exit 1
+fi
+
+echo "Jenkins EBS found: $DEVICE"
+
+# Verify that the persistent EBS has an ext4 filesystem
+FS_TYPE=$(blkid -s TYPE -o value "$DEVICE" || true)
+
+if [ "$FS_TYPE" != "ext4" ]; then
+  echo "ERROR: Jenkins EBS must contain an ext4 filesystem."
+  echo "Detected filesystem: $${FS_TYPE:-none}"
+  exit 1
+fi
+
+# Mount persistent Jenkins EBS
+mkdir -p /mnt/jenkins-data
+mount "$DEVICE" /mnt/jenkins-data
+
+# Initialize a new volume with Jenkins files from Golden AMI
+if [ ! -f /mnt/jenkins-data/.jenkins-volume-initialized ]; then
+  if [ -n "$(ls -A /mnt/jenkins-data | grep -v '^lost+found$')" ]; then
+    echo "ERROR: EBS contains existing data. Refusing initialization."
+    exit 1
+  fi
+
+  cp -a /var/lib/jenkins/. /mnt/jenkins-data/
+
+  # Set ownership only during initial volume preparation
+  chown -R jenkins:jenkins /mnt/jenkins-data
+  touch /mnt/jenkins-data/.jenkins-volume-initialized
+fi
+
+# Mount EBS as Jenkins Home
+umount /mnt/jenkins-data
+mount "$DEVICE" /var/lib/jenkins
+
+# Persist the EBS mount across reboots
+UUID=$(blkid -s UUID -o value "$DEVICE")
+
+if [ -z "$UUID" ]; then
+  echo "ERROR: Could not determine EBS filesystem UUID"
+  exit 1
+fi
+
+echo "UUID=$UUID /var/lib/jenkins ext4 defaults 0 2" >> /etc/fstab
+
+# Jenkins must not start without its persistent EBS
+mkdir -p /etc/systemd/system/jenkins.service.d
+
+cat > /etc/systemd/system/jenkins.service.d/ebs.conf <<'EOF'
+[Unit]
+RequiresMountsFor=/var/lib/jenkins
+EOF
+
+# Start Jenkins after bootstrap configuration is ready
+systemctl daemon-reload
+systemctl enable --now jenkins

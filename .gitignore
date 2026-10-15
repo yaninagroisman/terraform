@@ -94,3 +94,15 @@ temp/
 .cache/
 *.bak
 *.tmp
+# Backup files
+*.bkp
+.$*
+
+# Terraform output
+plan.txt
+terraform-state-backup.json
+
+# Accidental files in Terraform directory
+/Terraform/Accept:
+/Terraform/GET
+/Terraform/ec2 describe-security-groups \

@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+GITLAB_UUID="d6c02535-45fb-4914-9525-646fc57fd9cb"
+
+# Не позволяем Docker запуститься без EBS
+systemctl stop docker.service docker.socket || true
+
+# Ждём, пока Terraform подключит EBS
+until blkid -U "$GITLAB_UUID" >/dev/null 2>&1; do
+    sleep 5
+done
+
+# Монтируем существующий EBS с данными GitLab
+mkdir -p /srv/gitlab
+mountpoint -q /srv/gitlab || mount /srv/gitlab
+
+# Запускаем Docker и существующий контейнер GitLab
+systemctl start docker.service
