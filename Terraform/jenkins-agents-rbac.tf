@@ -3,6 +3,9 @@ resource "kubernetes_service_account_v1" "jenkins_agents" {
     name      = "jenkins-controller"
     namespace = "jenkins"
   }
+  depends_on = [
+    kubernetes_namespace_v1.jenkins
+  ]
 }
 
 resource "kubernetes_role_v1" "jenkins_agents" {
@@ -22,6 +25,9 @@ resource "kubernetes_role_v1" "jenkins_agents" {
     resources  = ["secrets"]
     verbs      = ["get"]
   }
+  depends_on = [
+    kubernetes_namespace_v1.jenkins
+  ]
 }
 
 resource "kubernetes_role_binding_v1" "jenkins_agents" {
