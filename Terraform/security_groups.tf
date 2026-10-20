@@ -87,15 +87,6 @@ resource "aws_vpc_security_group_egress_rule" "jenkins_out" {
   ip_protocol = "-1"
   cidr_ipv4   = "0.0.0.0/0"
 }
-resource "aws_vpc_security_group_ingress_rule" "gitlab_ssh" {
-  security_group_id = aws_security_group.gitlab.id
-
-  from_port   = 22
-  to_port     = 22
-  ip_protocol = "tcp"
-
-  cidr_ipv4 = var.office_cidr
-}
 
 resource "aws_vpc_security_group_ingress_rule" "gitlab_ssh_from_nlb" {
   security_group_id = aws_security_group.gitlab.id
@@ -160,4 +151,12 @@ resource "aws_vpc_security_group_ingress_rule" "gitlab_ssh_from_eks" {
   to_port     = 2222
 
   description = "Allow EKS Jenkins agents to access GitLab SSH"
+}
+resource "aws_vpc_security_group_ingress_rule" "jenkins_from_gitlab" {
+  security_group_id            = aws_security_group.jenkins.id
+  referenced_security_group_id = aws_security_group.gitlab.id
+  ip_protocol                  = "tcp"
+  from_port                    = 8081
+  to_port                      = 8081
+  description                  = "GitLab webhooks to Jenkins"
 }

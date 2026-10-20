@@ -11,7 +11,7 @@ resource "helm_release" "external_dns" {
       provider = {
         name = "aws"
       }
-
+      extraArgs = ["--aws-zone-type=public"]
       sources = ["ingress"]
 
       domainFilters = [trimsuffix(var.domain_name, ".")]
@@ -30,7 +30,7 @@ resource "helm_release" "external_dns" {
         }
       }
       txtPrefix          = "external-dns-"
-      logLevel           = "debug"
+      logLevel           = "info"
       managedRecordTypes = ["A"]
     })
   ]
@@ -40,6 +40,7 @@ resource "helm_release" "external_dns" {
 
   depends_on = [
     module.eks,
-    aws_iam_role_policy.external_dns
+    aws_iam_role_policy.external_dns,
+    helm_release.aws_load_balancer_controller,
   ]
 }

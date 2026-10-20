@@ -9,8 +9,10 @@ metadata:
     alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
     alb.ingress.kubernetes.io/target-type: {{ .Values.ingress.targetType | quote }}
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    {{- if .Values.ingress.certificateArn }}
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
-    external-dns.alpha.kubernetes.io/hostname: weather.infinityweather.online
+    {{- end }}
+    external-dns.alpha.kubernetes.io/hostname: {{ .Values.ingress.host | quote }}
     alb.ingress.kubernetes.io/ssl-redirect: "443"
 
 spec:

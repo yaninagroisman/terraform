@@ -36,7 +36,10 @@ resource "aws_iam_role_policy" "external_secrets" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-        Resource = "arn:aws:secretsmanager:eu-north-1:060941289583:secret:infinity-weather/api-key-*"
+        Resource = [
+        "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:infinity-weather/api-key-*",
+        "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:infinity-weather/argocd-repo-key-*",
+        ]
       }
     ]
   })

@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: weather-app
+  namespace: argocd
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://git.infinityweather.online/hdo5/lab/-/tree/7631c07483be07ba727abf041968b6f5049d76e8/
+    targetRevision: main
+    path: helm/weather-app
+
+    helm:
+      releaseName: weather-app
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: weather
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

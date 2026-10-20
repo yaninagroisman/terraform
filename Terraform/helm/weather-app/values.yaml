@@ -3,27 +3,26 @@ replicaCount: 2
 image:
   repository: yaninagroisman/yanina_groisman
   tag: "65"
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
   targetPort: 5000
-  nodePort: 30080
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits:   { memory: 256Mi }
 
 secret:
   name: weather-secret
 
-config:
-  flaskEnv: production
-  port: "5000"
-
 ingress:
-  enabled: true
   className: alb
-  host: weather.infinityweather.online
+  host: weather.<domain>
   scheme: internet-facing
   targetType: ip
+  certificateArn: "arn:aws:acm:eu-north-1:060941289583:certificate/991089fb-d57c-41fa-a473-c448a0d802ff"
 
 autoscaling:
   enabled: true

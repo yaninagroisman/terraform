@@ -24,14 +24,12 @@ resource "helm_release" "aws_load_balancer_controller" {
   timeout = 300
 
   depends_on = [
-    module.eks,
-    module.network,
-    helm_release.metrics_server
+    module.eks
   ]
 }
 resource "helm_release" "metrics_server" {
-  name       = "metrics-server"
-  namespace  = "kube-system"
+  name      = "metrics-server"
+  namespace = "kube-system"
 
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
@@ -39,7 +37,5 @@ resource "helm_release" "metrics_server" {
   wait    = true
   timeout = 300
 
-  depends_on = [
-    module.eks
-  ]
+  depends_on = [helm_release.aws_load_balancer_controller]
 }

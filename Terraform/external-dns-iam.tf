@@ -41,11 +41,13 @@ resource "aws_iam_role_policy" "external_dns" {
         Resource = data.aws_route53_zone.main.arn
         Condition = {
           "ForAllValues:StringEquals" = {
-            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [
-              "weather.${trimsuffix(var.domain_name, ".")}",
-              "external-dns-a-weather.${trimsuffix(var.domain_name, ".")}",
-              "external-dns-aaaa-weather.${trimsuffix(var.domain_name, ".")}"
-            ]
+                        "route53:ChangeResourceRecordSetsNormalizedRecordNames" = flatten([
+              for h in ["weather", "argocd"] : [
+                "${h}.${trimsuffix(var.domain_name, ".")}",
+                "external-dns-a-${h}.${trimsuffix(var.domain_name, ".")}",
+                "external-dns-aaaa-${h}.${trimsuffix(var.domain_name, ".")}",
+              ]
+            ])
           }
         }
       },

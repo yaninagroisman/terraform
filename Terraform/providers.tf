@@ -1,19 +1,18 @@
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.10.0" # use_lockfile требует 1.10+
+
+  backend "s3" {
+    bucket       = "yanina-terraform-test"
+    key          = "infinity-weather/terraform.tfstate"
+    region       = "eu-north-1"
+    encrypt      = true
+    use_lockfile = true
+  }
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.0"
-    }
-
-    kubernetes = {
-      source = "hashicorp/kubernetes"
-    }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 3.0"
-    }
+    aws        = { source = "hashicorp/aws", version = "~> 6.0" }
+    kubernetes = { source = "hashicorp/kubernetes", version = "~> 3.0" }
+    helm       = { source = "hashicorp/helm", version = "~> 3.0" }
   }
 }
 

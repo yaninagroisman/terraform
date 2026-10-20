@@ -1,4 +1,4 @@
-{{- if (dig "autoscaling" "enabled" false .Values) }}
+{{- if (.Values.autoscaling.enabled | default false) }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

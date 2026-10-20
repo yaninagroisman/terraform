@@ -24,3 +24,6 @@ output "security_group_ids" {
   description = "Security Group IDs for EC2 instances"
   value       = var.security_group_ids
 }
+output "private_ips" {
+  value = { for k, m in module.instances : k => m.private_ip }
+}
