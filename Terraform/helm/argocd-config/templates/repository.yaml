@@ -1,0 +1,31 @@
+# Argo CD repository credentials, built by External Secrets Operator from Secrets Manager.
+# Argo CD picks up any Secret in its namespace labelled secret-type=repository.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-weather-gitops
+  namespace: {{ .Release.Namespace }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: {{ .Values.clusterSecretStore }}
+    kind: ClusterSecretStore
+  target:
+    name: repo-weather-gitops
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      data:
+        type: git
+        url: {{ .Values.repoURL | quote }}
+        sshPrivateKey: '{{ "{{ .sshPrivateKey }}" }}'
+        {{- if .Values.insecure }}
+        insecure: "true"
+        {{- end }}
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef:
+        key: {{ .Values.repoKeySecret }}

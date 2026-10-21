@@ -1,5 +1,6 @@
 module "git_nlb" {
-  source = "terraform-aws-modules/alb/aws"
+  source  = "terraform-aws-modules/alb/aws"
+  version = "10.5.1"
 
   name               = "${var.project_name}-git-nlb"
   load_balancer_type = "network"

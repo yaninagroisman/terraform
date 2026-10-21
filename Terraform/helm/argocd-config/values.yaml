@@ -1,0 +1,21 @@
+# All values are passed by Terraform (argocd.tf). Defaults only document the shape.
+
+# Git repository with the application chart (SSH, deploy key with read-only access)
+repoURL: ""
+# Secrets Manager secret that holds the private SSH key (plain text)
+repoKeySecret: infinity-weather/argocd-repo-key
+# Name of the ClusterSecretStore created by helm/secret-store
+clusterSecretStore: aws-secrets-manager
+# true only when the GitLab SSH host key is not provided (configs.ssh.extraHosts)
+insecure: false
+
+project: weather
+
+app:
+  name: weather
+  path: apps/weather
+  targetRevision: main
+  namespace: weather
+  releaseName: weather-app
+  # Helm parameters that override values.yaml in Git, e.g. the ACM certificate ARN
+  helmParameters: []

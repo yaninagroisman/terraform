@@ -16,7 +16,9 @@ resource "helm_release" "external_dns" {
 
       domainFilters = [trimsuffix(var.domain_name, ".")]
 
-      policy = "upsert-only"
+      # sync: records are also deleted when their Ingress is deleted (terraform destroy leaves no
+      # stale weather./argocd. records). Only records owned by this cluster (TXT registry) are touched.
+      policy = "sync"
 
       registry   = "txt"
       txtOwnerId = "infinity-weather-eks"

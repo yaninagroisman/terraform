@@ -80,7 +80,8 @@ if [ -z "$UUID" ]; then
   exit 1
 fi
 
-echo "UUID=$UUID /var/lib/jenkins ext4 defaults 0 2" >> /etc/fstab
+# nofail: a missing volume must not drop the instance into emergency mode (SSM would be unreachable)
+echo "UUID=$UUID /var/lib/jenkins ext4 defaults,nofail 0 2" >> /etc/fstab
 
 # Jenkins must not start without its persistent EBS
 mkdir -p /etc/systemd/system/jenkins.service.d
@@ -90,6 +91,75 @@ cat > /etc/systemd/system/jenkins.service.d/ebs.conf <<'EOF'
 RequiresMountsFor=/var/lib/jenkins
 EOF
 
-# Start Jenkins after bootstrap configuration is ready
+# Keep retrying instead of giving up after 5 fast failures: on a fresh build the instance can
+# start before its IAM policy is attached, and the admin-password script then gets AccessDenied.
+cat > /etc/systemd/system/jenkins.service.d/restart.conf <<'EOF'
+[Unit]
+StartLimitIntervalSec=0
+
+[Service]
+Restart=on-failure
+RestartSec=15s
+EOF
+
+# Kubeconfig for the Kubernetes plugin.
+# The EKS endpoint and CA change every time the cluster is recreated, so instead of storing them
+# in the Jenkins cloud settings, the kubeconfig is generated at boot. It authenticates with the
+# instance role (aws eks get-token); the EKS access entry for this role allows pods in namespace
+# "jenkins". In Jenkins, the Kubernetes cloud keeps "Kubernetes URL" and "Credentials" EMPTY,
+# so the plugin auto-configures from ~/.kube/config.
+cat > /usr/local/bin/jenkins-kubeconfig <<'EOS'
+#!/bin/bash
+set -uo pipefail
+CLUSTER="${eks_cluster_name}"
+REGION="${aws_region}"
+KCFG=/var/lib/jenkins/.kube/config
+
+# On a fresh build EKS becomes ACTIVE ~10 minutes after this instance; wait up to 30 minutes
+for i in $(seq 1 90); do
+  STATUS=$(aws eks describe-cluster --name "$CLUSTER" --region "$REGION" \
+             --query cluster.status --output text 2>/dev/null || true)
+  [ "$STATUS" = "ACTIVE" ] && break
+  sleep 20
+done
+
+if [ "$STATUS" != "ACTIVE" ]; then
+  echo "jenkins-kubeconfig: cluster $CLUSTER is not ACTIVE, kubeconfig not updated" >&2
+  exit 0
+fi
+
+install -d -o jenkins -g jenkins -m 700 /var/lib/jenkins/.kube
+aws eks update-kubeconfig --name "$CLUSTER" --region "$REGION" --kubeconfig "$KCFG"
+chown jenkins:jenkins "$KCFG"
+chmod 600 "$KCFG"
+EOS
+chmod 755 /usr/local/bin/jenkins-kubeconfig
+
+cat > /etc/systemd/system/jenkins-kubeconfig.service <<'EOF'
+[Unit]
+Description=Generate kubeconfig for the Jenkins Kubernetes plugin
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/var/lib/jenkins
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=40min
+ExecStart=/usr/local/bin/jenkins-kubeconfig
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/systemd/system/jenkins.service.d/kubeconfig.conf <<'EOF'
+[Unit]
+Wants=jenkins-kubeconfig.service
+After=jenkins-kubeconfig.service
+EOF
+
+# Start Jenkins after bootstrap configuration is ready.
+# --no-block: do not hold cloud-init while jenkins-kubeconfig waits for the cluster.
 systemctl daemon-reload
-systemctl enable --now jenkins
+systemctl enable jenkins-kubeconfig.service jenkins
+systemctl start --no-block jenkins

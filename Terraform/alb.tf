@@ -1,5 +1,6 @@
 module "developer_alb" {
-  source = "terraform-aws-modules/alb/aws"
+  source  = "terraform-aws-modules/alb/aws"
+  version = "10.5.1" # pinned to the version in .terraform; the lock file does not cover modules
 
   name               = "${var.project_name}-developer-alb"
   load_balancer_type = "application"

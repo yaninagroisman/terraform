@@ -28,23 +28,40 @@ resource "aws_security_group" "jenkins" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "developer_alb_https" {
-  security_group_id = aws_security_group.developer_alb.id
-
-  from_port   = 443
-  to_port     = 443
-  ip_protocol = "tcp"
-
-  cidr_ipv4 = var.office_cidr
+# Keyed by position in admin_cidrs: changing an address updates the rule in place
+# (keying by CIDR would delete + create, and AWS rejects a duplicate rule created in parallel).
+locals {
+  admin_cidrs_by_index = { for i, cidr in var.admin_cidrs : tostring(i) => cidr }
 }
-resource "aws_vpc_security_group_ingress_rule" "developer_alb_https_home" {
+
+# Former single rules (office = admin_cidrs[0], home = admin_cidrs[1]) are moved, not recreated
+moved {
+  from = aws_vpc_security_group_ingress_rule.developer_alb_https
+  to   = aws_vpc_security_group_ingress_rule.developer_alb_https["0"]
+}
+moved {
+  from = aws_vpc_security_group_ingress_rule.developer_alb_https_home
+  to   = aws_vpc_security_group_ingress_rule.developer_alb_https["1"]
+}
+moved {
+  from = aws_vpc_security_group_ingress_rule.git_nlb_ssh_from_office
+  to   = aws_vpc_security_group_ingress_rule.git_nlb_ssh["0"]
+}
+moved {
+  from = aws_vpc_security_group_ingress_rule.git_nlb_ssh_from_home
+  to   = aws_vpc_security_group_ingress_rule.git_nlb_ssh["1"]
+}
+
+resource "aws_vpc_security_group_ingress_rule" "developer_alb_https" {
+  for_each          = local.admin_cidrs_by_index
   security_group_id = aws_security_group.developer_alb.id
 
   from_port   = 443
   to_port     = 443
   ip_protocol = "tcp"
 
-  cidr_ipv4 = "46.210.40.120/32"
+  cidr_ipv4   = each.value
+  description = "HTTPS to GitLab and Jenkins from an admin network"
 }
 resource "aws_vpc_security_group_egress_rule" "developer_alb_out" {
   security_group_id = aws_security_group.developer_alb.id
@@ -106,23 +123,16 @@ resource "aws_security_group" "git_nlb" {
     Name = "${var.project_name}-git-nlb-sg"
   }
 }
-resource "aws_vpc_security_group_ingress_rule" "git_nlb_ssh_from_office" {
+resource "aws_vpc_security_group_ingress_rule" "git_nlb_ssh" {
+  for_each          = local.admin_cidrs_by_index
   security_group_id = aws_security_group.git_nlb.id
 
   from_port   = 22
   to_port     = 22
   ip_protocol = "tcp"
 
-  cidr_ipv4 = var.office_cidr
-}
-resource "aws_vpc_security_group_ingress_rule" "git_nlb_ssh_from_home" {
-  security_group_id = aws_security_group.git_nlb.id
-
-  from_port   = 22
-  to_port     = 22
-  ip_protocol = "tcp"
-
-  cidr_ipv4 = "46.210.40.120/32"
+  cidr_ipv4   = each.value
+  description = "Git over SSH from an admin network"
 }
 resource "aws_vpc_security_group_egress_rule" "git_nlb_to_gitlab" {
   security_group_id = aws_security_group.git_nlb.id

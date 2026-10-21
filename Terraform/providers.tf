@@ -13,6 +13,7 @@ terraform {
     aws        = { source = "hashicorp/aws", version = "~> 6.0" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 3.0" }
     helm       = { source = "hashicorp/helm", version = "~> 3.0" }
+    random     = { source = "hashicorp/random", version = "~> 3.7" }
   }
 }
 
@@ -20,9 +21,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-data "aws_eks_cluster_auth" "this" {
-  name = module.eks.cluster_name
-}
 provider "kubernetes" {
   host = module.eks.cluster_endpoint
 
@@ -36,7 +34,7 @@ provider "kubernetes" {
     args = [
       "eks", "get-token",
       "--cluster-name", module.eks.cluster_name,
-      "--region", "eu-north-1"
+      "--region", var.aws_region
     ]
   }
 }
@@ -55,7 +53,7 @@ provider "helm" {
       args = [
         "eks", "get-token",
         "--cluster-name", module.eks.cluster_name,
-        "--region", "eu-north-1"
+        "--region", var.aws_region
       ]
     }
   }

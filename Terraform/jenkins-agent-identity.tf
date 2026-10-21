@@ -34,7 +34,7 @@ resource "aws_iam_role_policy" "jenkins_agent" {
       {
         Effect   = "Allow"
         Action   = ["eks:DescribeCluster"]
-        Resource = "arn:aws:eks:eu-north-1:${data.aws_caller_identity.current.account_id}:cluster/infinity-weather-eks"
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${local.cluster_name}"
       }
     ]
   })

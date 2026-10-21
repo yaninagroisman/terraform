@@ -1,0 +1,32 @@
+# Monitoring stack on the monitoring EC2 host. Deployed by /usr/local/bin/monitoring-sync.
+# Host networking: Prometheus reaches pod IPs in the VPC and node-exporter on localhost.
+name: monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    network_mode: host
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/conf/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle          # allows POST /-/reload after a config change
+    volumes:
+      # directories, not single files: monitoring-sync replaces files atomically
+      - /opt/monitoring/rendered:/etc/prometheus/conf:ro
+      - /opt/monitoring/secrets:/etc/prometheus/secrets:ro
+      - prometheus-data:/prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+
+volumes:
+  prometheus-data: {}

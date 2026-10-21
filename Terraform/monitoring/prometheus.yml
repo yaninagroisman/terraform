@@ -1,0 +1,54 @@
+# __EKS_ENDPOINT__ is replaced on the host by monitoring-sync with the current cluster endpoint.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    environment: infinity-weather
+
+rule_files:
+  - /etc/prometheus/conf/rules/*.yml
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The monitoring host (CPU, memory, disk)
+  - job_name: node
+    static_configs:
+      - targets: ["localhost:9100"]
+        labels:
+          instance: monitoring
+
+  # Weather application pods, discovered through the EKS API.
+  # A pod is scraped only if it has the annotation prometheus.io/scrape: "true".
+  - job_name: weather
+    kubernetes_sd_configs:
+      - role: pod
+        api_server: __EKS_ENDPOINT__
+        namespaces:
+          names: [weather]
+        authorization:
+          credentials_file: /etc/prometheus/secrets/eks-token
+        tls_config:
+          ca_file: /etc/prometheus/secrets/eks-ca.crt
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: "true"
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        regex: (.+)
+        target_label: __metrics_path__
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        target_label: app

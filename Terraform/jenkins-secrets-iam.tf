@@ -1,16 +1,19 @@
 resource "aws_iam_policy" "jenkins_secrets" {
   name        = "${var.project_name}-jenkins-secrets"
-  description = "Allow Jenkins to read its admin password"
+  description = "Jenkins: read its admin password, describe the EKS cluster for its kubeconfig"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = "arn:aws:secretsmanager:eu-north-1:060941289583:secret:infinity-weather/jenkins-admin-password-hdi9MZ"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:infinity-weather/jenkins-admin-password-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["eks:DescribeCluster"]
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${local.cluster_name}"
       }
     ]
   })

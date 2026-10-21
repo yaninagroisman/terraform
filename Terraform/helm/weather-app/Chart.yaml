@@ -1,6 +1,0 @@
-apiVersion: v2
-name: weather-app
-description: Helm chart for Infinity Weather
-type: application
-version: 0.1.0
-appVersion: "65"

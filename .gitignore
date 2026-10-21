@@ -97,6 +97,7 @@ temp/
 # Backup files
 *.bkp
 .$*
+.tar.gz
 
 # Terraform output
 plan.txt

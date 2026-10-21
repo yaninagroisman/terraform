@@ -1,0 +1,36 @@
+# The finalizer makes Argo CD delete everything it deployed (Deployment, Service, Ingress -> ALB)
+# when this Application is deleted. terraform destroy relies on it (see teardown.tf).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Release.Namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .Values.project }}
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.app.targetRevision }}
+    path: {{ .Values.app.path }}
+    helm:
+      releaseName: {{ .Values.app.releaseName }}
+      {{- with .Values.app.helmParameters }}
+      parameters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.app.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

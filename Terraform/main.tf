@@ -1,3 +1,9 @@
+locals {
+  # Known before the cluster exists, so EC2 user data can use it without a dependency cycle
+  # (module.eks already depends on module.ec2 through the Jenkins role ARN).
+  cluster_name = "${var.project_name}-eks"
+}
+
 module "network" {
   source = "./modules/network"
 
@@ -31,12 +37,12 @@ module "ec2" {
     jenkins = [aws_security_group.jenkins.id]
   }
 
+  # Private IPs are dynamic; services find each other through the private zone internal.<domain>
   instances = {
     gitlab = {
       ami           = "ami-0fe40a89e47747999"
       instance_type = "t3.large"
       subnet_index  = 0
-      private_ip    = "10.0.11.67"
       user_data     = templatefile("${path.module}/gitlab-user-data.sh.tftpl", {})
     }
 
@@ -44,18 +50,20 @@ module "ec2" {
       ami           = "ami-0ce661e27efc9b836"
       instance_type = "t3.medium"
       subnet_index  = 1
-      private_ip    = "10.0.12.124"
       user_data = templatefile("${path.module}/jenkins-user-data.sh.tftpl", {
         jenkins_volume_id        = var.jenkins_ebs_volume_id
         jenkins_volume_id_nodash = replace(var.jenkins_ebs_volume_id, "-", "")
+        eks_cluster_name         = local.cluster_name
+        aws_region               = var.aws_region
       })
     }
   }
 }
+
 module "eks" {
   source = "./modules/eks"
 
-  cluster_name = "${var.project_name}-eks"
+  cluster_name = local.cluster_name
 
   vpc_id             = module.network.vpc_id
   private_subnet_ids = module.network.private_subnet_ids
@@ -63,11 +71,9 @@ module "eks" {
   kubernetes_version = "1.36"
   jenkins_role_arn   = module.ec2.iam_role_arns["jenkins"]
 
-  cluster_endpoint_public_access_cidrs = [
-    var.office_cidr,
-    "46.210.40.120/32"
-  ]
+  cluster_endpoint_public_access_cidrs = var.admin_cidrs
 }
+
 resource "kubernetes_namespace_v1" "jenkins" {
   metadata {
     name = "jenkins"

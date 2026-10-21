@@ -1,0 +1,14 @@
+# Limits the application to one repository and one namespace, no cluster-scoped objects.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: {{ .Values.project }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  description: infinity-weather application
+  sourceRepos:
+    - {{ .Values.repoURL | quote }}
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: {{ .Values.app.namespace }}
+  clusterResourceWhitelist: []

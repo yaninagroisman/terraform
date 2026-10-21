@@ -1,0 +1,2 @@
+# Alert rules are added in exercise 5. An empty group list keeps Prometheus happy.
+groups: []

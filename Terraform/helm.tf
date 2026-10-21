@@ -11,12 +11,25 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set = [
     {
+      name  = "clusterName"
+      value = module.eks.cluster_name
+    },
+    {
+      name  = "region"
+      value = var.aws_region
+    },
+    {
       name  = "vpcId"
       value = module.network.vpc_id
     },
     {
       name  = "backendSecurityGroup"
       value = aws_security_group.alb_backend.id
+    },
+    {
+      # was a hardcoded ARN with the account ID in values.yaml
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = module.eks.alb_controller_role_arn
     }
   ]
 

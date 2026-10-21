@@ -5,7 +5,7 @@ data "aws_iam_policy_document" "ssm_user_access" {
     actions = ["ssm:StartSession"]
 
     resources = [
-      "arn:aws:ec2:eu-north-1:060941289583:instance/*"
+      "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/*"
     ]
 
     condition {
@@ -17,7 +17,7 @@ data "aws_iam_policy_document" "ssm_user_access" {
     condition {
       test     = "StringEquals"
       variable = "ssm:resourceTag/Role"
-      values   = ["jenkins", "gitlab"]
+      values   = ["jenkins", "gitlab", "monitoring"]
     }
   }
 
@@ -27,7 +27,9 @@ data "aws_iam_policy_document" "ssm_user_access" {
     actions = ["ssm:StartSession"]
 
     resources = [
-      "arn:aws:ssm:eu-north-1:060941289583:document/SSM-SessionManagerRunShell"
+      "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:document/SSM-SessionManagerRunShell",
+      # AWS-owned document (no account ID in the ARN) used by the Prometheus tunnel
+      "arn:aws:ssm:${var.aws_region}::document/AWS-StartPortForwardingSession"
     ]
   }
 
@@ -41,7 +43,7 @@ data "aws_iam_policy_document" "ssm_user_access" {
     ]
 
     resources = [
-      "arn:aws:ssm:eu-north-1:060941289583:session/terraform-*"
+      "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:session/terraform-*"
     ]
   }
   statement {

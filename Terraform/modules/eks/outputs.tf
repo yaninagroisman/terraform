@@ -24,6 +24,10 @@ output "cluster_security_group_id" {
   description = "EKS cluster security group ID"
   value       = module.eks.cluster_security_group_id
 }
+output "alb_controller_role_arn" {
+  description = "IAM role (IRSA) of the AWS Load Balancer Controller"
+  value       = aws_iam_role.alb_controller.arn
+}
 output "node_security_group_id" {
   description = "Security group ID used by EKS worker nodes"
   value       = module.eks.node_security_group_id
