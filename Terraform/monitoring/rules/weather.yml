@@ -1,0 +1,56 @@
+# Alert rules (exercise 5). Prometheus evaluates them every 30 s; firing alerts go to Alertmanager -> Slack.
+groups:
+  - name: weather-app
+    rules:
+      - alert: WeatherPodDown
+        expr: up{job="weather"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Weather pod {{ $labels.pod }} does not answer"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for more than 2 minutes."
+
+      - alert: WeatherAppMissing
+        expr: absent(up{job="weather"} == 1)
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No weather pod is up"
+          description: "Prometheus has not seen a single healthy weather pod for 3 minutes. The site is probably down."
+
+      - alert: WeatherHigh5xxRate
+        expr: |
+          sum(rate(flask_http_request_total{job="weather", status=~"5.."}[5m]))
+            / sum(rate(flask_http_request_total{job="weather"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of requests fail with 5xx"
+          description: "Server error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: WeatherHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(flask_http_request_duration_seconds_bucket{job="weather"}[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The app is slow: p95 latency above 1 s"
+          description: "95th percentile latency is {{ $value | humanizeDuration }}."
+
+  - name: monitoring-host
+    rules:
+      - alert: MonitoringDiskFull
+        expr: |
+          node_filesystem_avail_bytes{job="node", mountpoint="/"}
+            / node_filesystem_size_bytes{job="node", mountpoint="/"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Monitoring host disk is almost full"
+          description: "Only {{ $value | humanizePercentage }} free on / of the monitoring host."

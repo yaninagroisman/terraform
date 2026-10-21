@@ -1,4 +1,4 @@
-# Monitoring host: Prometheus (+ node-exporter now; Grafana and Alertmanager later) on an EC2
+# Monitoring host: Prometheus, node-exporter, Alertmanager and Grafana (grafana.tf) on an EC2
 # instance in a private subnet. Config files live in ./monitoring, are uploaded to S3 by Terraform
 # and pulled by the instance every 5 minutes, so a config change is just `terraform apply`.
 #
@@ -128,6 +128,13 @@ resource "aws_iam_role_policy" "monitoring" {
         Resource = "${aws_s3_bucket.monitoring.arn}/*"
       },
       {
+        # Slack webhook for Alertmanager; "-*" is the random suffix Secrets Manager adds to the ARN
+        Sid      = "ReadSlackWebhook"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.slack_webhook_secret_name}-*"
+      },
+      {
         Sid      = "DescribeCluster"
         Effect   = "Allow"
         Action   = ["eks:DescribeCluster"]
@@ -152,11 +159,13 @@ resource "aws_instance" "monitoring" {
   iam_instance_profile   = aws_iam_instance_profile.monitoring.name
 
   user_data = templatefile("${path.module}/monitoring-user-data.sh.tftpl", {
-    bucket       = aws_s3_bucket.monitoring.id
-    cluster_name = local.cluster_name
-    aws_region   = var.aws_region
+    bucket            = aws_s3_bucket.monitoring.id
+    cluster_name      = local.cluster_name
+    aws_region        = var.aws_region
+    slack_secret_name = var.slack_webhook_secret_name
   })
-  # Nothing important lives on this host yet, so a changed boot script simply rebuilds it
+  # The boot script only installs Docker and the sync wrapper; everything else comes from S3.
+  # If it does change, the host is rebuilt (only the metrics history is lost).
   user_data_replace_on_change = true
 
   metadata_options {
@@ -180,7 +189,7 @@ resource "aws_instance" "monitoring" {
     ignore_changes = [ami] # a new Amazon Linux release must not replace the host on every apply
   }
 
-  depends_on = [aws_s3_object.monitoring]
+  depends_on = [aws_s3_object.monitoring, aws_s3_object.grafana_admin_password]
 }
 
 resource "aws_route53_record" "monitoring_internal" {
@@ -239,4 +248,9 @@ output "monitoring_instance_id" {
 output "prometheus_tunnel_command" {
   description = "Opens Prometheus on http://localhost:9090"
   value       = "aws ssm start-session --region ${var.aws_region} --target ${aws_instance.monitoring.id} --document-name AWS-StartPortForwardingSession --parameters portNumber=9090,localPortNumber=9090"
+}
+
+output "alertmanager_tunnel_command" {
+  description = "Opens Alertmanager on http://localhost:9093"
+  value       = "aws ssm start-session --region ${var.aws_region} --target ${aws_instance.monitoring.id} --document-name AWS-StartPortForwardingSession --parameters portNumber=9093,localPortNumber=9093"
 }

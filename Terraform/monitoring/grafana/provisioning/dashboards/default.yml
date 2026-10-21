@@ -1,0 +1,11 @@
+# Loads every *.json in /etc/grafana/dashboards; files are re-read every 30 s,
+# so a changed dashboard arrives with the next monitoring-sync (no restart).
+apiVersion: 1
+providers:
+  - name: infinity-weather
+    folder: Infinity Weather
+    type: file
+    allowUiUpdates: false        # edit the JSON in Git, not in the UI
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Boot script of the monitoring host (Amazon Linux 2023).
-# Installs Docker + Compose, then installs monitoring-sync, which every 5 minutes:
-#   pulls config from S3, refreshes the EKS token/CA for Prometheus, (re)starts the stack.
+# Installs Docker + Compose and a small wrapper, monitoring-sync, that every 5 minutes downloads the
+# real sync script from S3 (Terraform/monitoring/bin/monitoring-sync.sh) and runs it.
+# Everything that changes lives in S3, so this boot script (and the instance) rarely has to change.
 set -euo pipefail
 
 dnf install -y docker jq
@@ -13,66 +14,36 @@ curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
   https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-x86_64
 chmod 755 /usr/local/lib/docker/cli-plugins/docker-compose
 
+install -d /etc/monitoring
+cat > /etc/monitoring/env <<'EOV'
+BUCKET=${bucket}
+CLUSTER=${cluster_name}
+REGION=${aws_region}
+SLACK_SECRET=${slack_secret_name}
+EOV
+
 cat > /usr/local/bin/monitoring-sync <<'EOS'
 #!/bin/bash
 set -euo pipefail
-BUCKET="${bucket}"
-CLUSTER="${cluster_name}"
-REGION="${aws_region}"
-BASE=/opt/monitoring
-install -d "$BASE/config" "$BASE/rendered" -m 755
-install -d "$BASE/secrets" -m 755
-
-# 1. Configuration from S3 (uploaded by Terraform from Terraform/monitoring/)
-aws s3 sync "s3://$BUCKET/" "$BASE/config/" --delete --only-show-errors --region "$REGION"
-
-# 2. EKS access for Prometheus: endpoint, CA and a short-lived token (valid 15 min, refreshed every 5)
-ENDPOINT="https://cluster-not-ready.invalid"
-if aws eks describe-cluster --name "$CLUSTER" --region "$REGION" > /tmp/cluster.json 2>/dev/null \
-   && [ "$(jq -r .cluster.status /tmp/cluster.json)" = "ACTIVE" ]; then
-  ENDPOINT=$(jq -r .cluster.endpoint /tmp/cluster.json)
-  jq -r .cluster.certificateAuthority.data /tmp/cluster.json | base64 -d > "$BASE/secrets/eks-ca.crt.new"
-  aws eks get-token --cluster-name "$CLUSTER" --region "$REGION" --output json \
-    | jq -r .status.token > "$BASE/secrets/eks-token.new"
-  # Prometheus runs as nobody (65534)
-  chown 65534:65534 "$BASE/secrets/"*.new
-  chmod 400 "$BASE/secrets/eks-token.new"
-  chmod 444 "$BASE/secrets/eks-ca.crt.new"
-  mv "$BASE/secrets/eks-ca.crt.new" "$BASE/secrets/eks-ca.crt"
-  mv "$BASE/secrets/eks-token.new" "$BASE/secrets/eks-token"
-fi
-
-# 3. Render prometheus.yml (the API endpoint changes with every new cluster)
-sed "s|__EKS_ENDPOINT__|$ENDPOINT|g" "$BASE/config/prometheus.yml" > "$BASE/rendered/prometheus.yml.new"
-CHANGED=0
-cmp -s "$BASE/rendered/prometheus.yml.new" "$BASE/rendered/prometheus.yml" || CHANGED=1
-mv "$BASE/rendered/prometheus.yml.new" "$BASE/rendered/prometheus.yml"
-rm -rf "$BASE/rendered/rules" && cp -r "$BASE/config/rules" "$BASE/rendered/rules"
-
-# 4. Start or update containers; reload Prometheus when its config changed
-cd "$BASE/config"
-docker compose up -d --remove-orphans
-if [ "$CHANGED" = "1" ]; then
-  sleep 2
-  curl -fsS -X POST http://localhost:9090/-/reload || true
-else
-  curl -fsS -X POST http://localhost:9090/-/reload >/dev/null 2>&1 || true   # picks up rule changes
-fi
+set -a; . /etc/monitoring/env; set +a
+aws s3 cp "s3://$BUCKET/bin/monitoring-sync.sh" /usr/local/lib/monitoring-sync.sh \
+  --only-show-errors --region "$REGION"
+exec /bin/bash /usr/local/lib/monitoring-sync.sh
 EOS
 chmod 755 /usr/local/bin/monitoring-sync
 
-cat > /etc/systemd/system/monitoring-sync.service <<'EOF'
+cat > /etc/systemd/system/monitoring-sync.service <<'EOU'
 [Unit]
-Description=Sync monitoring config from S3 and refresh EKS credentials
+Description=Sync monitoring config from S3 and refresh credentials
 Wants=network-online.target docker.service
 After=network-online.target docker.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/monitoring-sync
-EOF
+EOU
 
-cat > /etc/systemd/system/monitoring-sync.timer <<'EOF'
+cat > /etc/systemd/system/monitoring-sync.timer <<'EOU'
 [Unit]
 Description=Run monitoring-sync every 5 minutes
 
@@ -82,7 +53,7 @@ OnUnitActiveSec=5min
 
 [Install]
 WantedBy=timers.target
-EOF
+EOU
 
 systemctl daemon-reload
 systemctl enable --now monitoring-sync.timer

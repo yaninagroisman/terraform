@@ -81,3 +81,9 @@ variable "argocd_readonly_users" {
   default     = {}
   sensitive   = true
 }
+
+variable "slack_webhook_secret_name" {
+  description = "Secrets Manager secret (created manually) with the Slack Incoming Webhook URL for Alertmanager"
+  type        = string
+  default     = "infinity-weather/slack-webhook-url"
+}

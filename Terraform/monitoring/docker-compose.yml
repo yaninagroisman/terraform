@@ -1,4 +1,4 @@
-# Monitoring stack on the monitoring EC2 host. Deployed by /usr/local/bin/monitoring-sync.
+# Monitoring stack on the monitoring EC2 host (Prometheus, node-exporter, Alertmanager, Grafana). Deployed by /usr/local/bin/monitoring-sync.
 # Host networking: Prometheus reaches pod IPs in the VPC and node-exporter on localhost.
 name: monitoring
 
@@ -28,5 +28,38 @@ services:
     volumes:
       - /:/host:ro,rslave
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    network_mode: host                  # :9093, Prometheus sends alerts to localhost:9093
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/conf/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --cluster.listen-address=        # single instance: no gossip cluster
+      - --web.external-url=http://localhost:9093
+    volumes:
+      - /opt/monitoring/config/alertmanager:/etc/alertmanager/conf:ro
+      - /opt/monitoring/secrets:/etc/alertmanager/secrets:ro   # slack-webhook-url from Secrets Manager
+      - alertmanager-data:/alertmanager
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    network_mode: host                  # :3000, reaches Prometheus on localhost:9090
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/grafana-secrets/grafana-admin-password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      # datasource + dashboard provider, and the dashboard JSON files (all from Terraform/monitoring/grafana)
+      - /opt/monitoring/config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - /opt/monitoring/config/grafana/dashboards:/etc/grafana/dashboards:ro
+      - /opt/monitoring/config/secrets:/run/grafana-secrets:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   prometheus-data: {}
+  grafana-data: {}
+  alertmanager-data: {}
